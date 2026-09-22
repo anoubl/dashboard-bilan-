@@ -12,6 +12,17 @@
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans p-4 md:p-6">
 
+    <!-- ÉCRAN DE CONNEXION (CODE PIN) -->
+    <div id="loginScreen" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-slate-900 p-8 rounded-2xl shadow-xl border border-slate-800 w-full max-w-sm text-center">
+            <h2 class="text-2xl font-bold text-emerald-400 mb-2"><i class="fa-solid fa-lock mr-2"></i>Accès Sécurisé</h2>
+            <p class="text-slate-400 text-sm mb-6">Entrez votre code confidentiel</p>
+            <input type="password" id="pinInput" placeholder="••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-100 focus:outline-none focus:border-emerald-500 mb-4">
+            <button onclick="verifierCode()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-xl transition duration-200">Déverrouiller</button>
+            <p id="erreurPin" class="text-rose-500 text-sm mt-4 hidden">Code incorrect, réessayez.</p>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto">
         <!-- En-tête -->
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -156,11 +167,10 @@
     </div>
 
     <!-- ========================================================================= -->
-    <!-- TEMPLATE PDF - Sorti de l'écran (left:-9999px) pour ne pas gêner, avec fond blanc forcé -->
+    <!-- TEMPLATE PDF -->
     <!-- ========================================================================= -->
     <div id="pdf-wrapper" class="absolute -left-[9999px] top-0 w-[800px]" style="font-family: Arial, sans-serif;">
         <div id="pdfTemplate" class="px-10 py-10 bg-white">
-            <!-- En-tête -->
             <div class="flex justify-between items-center border-b-2 border-slate-800 pb-4 mb-6">
                 <div>
                     <h1 class="text-3xl font-black text-slate-900 tracking-tight" style="color: #0f172a;">AHMED AMINE ANOUBL</h1>
@@ -171,7 +181,6 @@
                 </div>
             </div>
 
-            <!-- Résumé Financier -->
             <div class="rounded-lg p-5 mb-8" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
                 <h3 class="text-sm font-bold uppercase pb-2 mb-3" style="color: #1e293b; border-bottom: 1px solid #e2e8f0;">Synthèse Globale</h3>
                 <div class="space-y-2 text-sm">
@@ -198,7 +207,6 @@
                 </div>
             </div>
 
-            <!-- Table des opérations -->
             <div class="mb-8">
                 <h3 class="text-sm font-bold uppercase pb-2 mb-4 tracking-wider" style="color: #1e293b; border-bottom: 2px solid #1e293b;">
                     Détail des opérations
@@ -213,12 +221,10 @@
                         </tr>
                     </thead>
                     <tbody id="pdfTableBody">
-                        <!-- Rempli par Javascript -->
                     </tbody>
                 </table>
             </div>
 
-            <!-- Footer du document -->
             <div class="mt-12 pt-4 text-center text-xs" style="border-top: 1px solid #cbd5e1; color: #64748b;">
                 ========================================<br>
                 Généré automatiquement par AHMED AMINE ANOUBL Dashboard<br>
@@ -377,9 +383,6 @@
             updateChart(chartLabels, chartData);
         }
 
-        // ==========================================
-        // GÉNÉRATION PDF AVEC FORÇAGE DES COULEURS
-        // ==========================================
         function genererPDF(moisCible) {
             const depensesMois = expenses.filter(item => item.mois === moisCible);
             let fluxMois = 0; let epargneMois = 0;
@@ -390,7 +393,6 @@
                 else fluxMois += item.montant;
             });
 
-            // Injection des totaux 
             document.getElementById('pdfMoisBadge').innerText = moisCible;
             document.getElementById('pdfDateGen').innerText = "Émis le : " + new Date().toLocaleDateString('fr-FR');
             document.getElementById('pdfFlux').innerText = fluxMois + " DH";
@@ -410,7 +412,6 @@
                     
                     let noteHtml = op.description ? `Note: ${op.description}` : `-`;
 
-                    // ON FORCE LES COULEURS EN CSS CLASSIQUE DANS LE JS
                     tr.innerHTML = `
                         <td class="py-3 px-3 font-bold" style="color: #64748b;">${index + 1}.</td>
                         <td class="py-3 px-3 font-semibold" style="color: #1e293b;">[${op.categorie}]</td>
@@ -424,15 +425,10 @@
             const element = document.getElementById('pdfTemplate');
             const opt = {
                 margin:       [0.5, 0],
-                filename:     `AHMED AMINE ANOUBL_Bilan_${moisCible.replace(/\s+/g, '_')}.pdf`,
+                filename:     `AHMED_AMINE_ANOUBL_Bilan_${moisCible.replace(/\s+/g, '_')}.pdf`,
                 image:        { type: 'jpeg', quality: 1 },
                 pagebreak:    { mode: 'css', before: '#nextpage' },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    logging: false,
-                    scrollY: 0 
-                },
+                html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
                 jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
 
@@ -498,6 +494,40 @@
             expenses = [];
             updateDashboard();
         }
+
+        // --- SYSTÈME DE SÉCURITÉ HACHÉ ---
+        // Ce texte crypté correspond au code "2026". Même si on lit le code, on ne sait pas ce que ça veut dire.
+        const HASH_SECRET = "131588f91c35bb629fd251452b62366d3c3a7acc4d167809682e434dc91ab9ac"; 
+
+        if (sessionStorage.getItem('anovia_auth') === 'true') {
+            document.getElementById('loginScreen').classList.add('hidden');
+        }
+
+        // Fonction native pour crypter en SHA-256 sans charger de bibliothèque lourde
+        async function hashText(text) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function verifierCode() {
+            const input = document.getElementById('pinInput').value;
+            const hashedInput = await hashText(input); // On hache ce que l'utilisateur a tapé
+
+            if (hashedInput === HASH_SECRET) {
+                document.getElementById('loginScreen').classList.add('hidden');
+                sessionStorage.setItem('anovia_auth', 'true');
+            } else {
+                document.getElementById('erreurPin').classList.remove('hidden');
+                document.getElementById('pinInput').value = '';
+            }
+        }
+
+        document.getElementById('pinInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') verifierCode();
+        });
 
         setMoisCourant();
         loadDataFromGoogleSheets(); 
