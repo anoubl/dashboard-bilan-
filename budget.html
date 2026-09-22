@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AHMED AMINE ANOUBL - Dashboard Financier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2pdf pour la génération du document -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans p-4 md:p-6">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- En-tête -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-800 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-emerald-400"><i class="fa-solid fa-chart-pie mr-2"></i>AHMED AMINE ANOUBL Budget Dashboard</h1>
+                <p class="text-slate-400 text-sm">Gestion financière, Prêts & Épargne (Salaire : 11 400 DH)</p>
+            </div>
+            <!-- Indicateur de chargement -->
+            <div id="loadingIndicator" class="mt-4 md:mt-0 text-emerald-400 font-medium text-sm flex items-center hidden">
+                <i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Synchro avec Google Sheets...
+            </div>
+        </header>
+
+        <!-- Zone de Notification Intelligente -->
+        <div id="notificationContainer" class="hidden mb-8 bg-gradient-to-r from-amber-500/10 to-emerald-500/10 border border-amber-500/30 p-4 rounded-2xl shadow-lg flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500/20 p-3 rounded-xl text-amber-400 text-xl">
+                    <i class="fa-solid fa-bell-concierge"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-amber-400 text-sm md:text-base">Rappel d'épargne bonus !</h3>
+                    <p class="text-xs md:text-sm text-slate-300" id="notificationText">Il te restait de l'argent le mois dernier. Pense à l'ajouter à ton épargne.</p>
+                </div>
+            </div>
+            <button onclick="injecterReliquatEpargne()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs md:text-sm transition shadow-lg whitespace-nowrap ml-4">
+                <i class="fa-solid fa-plus mr-1"></i> Transférer
+            </button>
+        </div>
+
+        <!-- Cartes Statistiques Globales -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center text-slate-400 mb-2">
+                    <span class="text-sm font-medium">Charges Fixes</span>
+                    <i class="fa-solid fa-house text-blue-400"></i>
+                </div>
+                <div class="text-2xl font-bold">2 350 DH</div>
+                <div class="text-xs text-slate-500 mt-1">Maison, WiFi, Eau/Élec</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center text-slate-400 mb-2">
+                    <span class="text-sm font-medium">Reste sur Salaire</span>
+                    <i class="fa-solid fa-money-bill-wave text-cyan-400"></i>
+                </div>
+                <div class="text-2xl font-bold text-cyan-400" id="cardResteSalaire">0 DH</div>
+                <div class="text-xs text-slate-500 mt-1">Du mois en cours</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center text-slate-400 mb-2">
+                    <span class="text-sm font-medium">Moyenne Épargne</span>
+                    <i class="fa-solid fa-piggy-bank text-emerald-400"></i>
+                </div>
+                <div class="text-2xl font-bold text-emerald-400" id="cardMoyenneEpargne">0 DH</div>
+                <div class="text-xs text-slate-500 mt-1">Basé sur l'épargne</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center text-slate-400 mb-2">
+                    <span class="text-sm font-medium">Total Flux Nets</span>
+                    <i class="fa-solid fa-wallet text-amber-400"></i>
+                </div>
+                <div class="text-2xl font-bold text-amber-400" id="cardTotalDepenses">0 DH</div>
+                <div class="text-xs text-slate-500 mt-1">Dépenses et prêts</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center text-slate-400 mb-2">
+                    <span class="text-sm font-medium">Mois Record</span>
+                    <i class="fa-solid fa-trophy text-purple-400"></i>
+                </div>
+                <div class="text-2xl font-bold text-purple-400" id="cardMoisRecord">-</div>
+                <div class="text-xs text-slate-500 mt-1">Max d'épargne</div>
+            </div>
+        </div>
+
+        <!-- Formulaire & Graphique -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Formulaire -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 text-slate-200"><i class="fa-solid fa-plus-circle mr-2 text-emerald-400"></i>Ajouter une opération</h2>
+                <form id="expenseForm" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Mois concerné</label>
+                        <input type="text" id="moisInput" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Catégorie</label>
+                        <select id="categorieInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                            <option value="Épargne / Investissement">Épargne / Investissement [+]</option>
+                            <option value="Essence (Moto/Mer)">Essence (Moto/Mer) [-]</option>
+                            <option value="Café & Bimo">Café & Bimo [-]</option>
+                            <option value="Imprévu / Loisir">Imprévu / Loisir [-]</option>
+                            <option value="Prêt accordé">Prêt accordé (Sortie d'argent) [-]</option>
+                            <option value="Remboursement reçu">Remboursement reçu (Entrée d'argent) [+]</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Montant (DH)</label>
+                        <input type="number" id="montantInput" placeholder="Ex: 500" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Description (Optionnel)</label>
+                        <input type="text" id="descInput" placeholder="Ex: Prêt à mon frère" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <button type="submit" id="submitBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2.5 rounded-xl transition duration-200 text-sm shadow-lg shadow-emerald-500/20">Enregistrer</button>
+                </form>
+            </div>
+
+            <!-- Graphique -->
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg flex flex-col justify-between">
+                <h2 class="text-lg font-semibold mb-4 text-slate-200"><i class="fa-solid fa-chart-line mr-2 text-emerald-400"></i>Évolution de l'Épargne par Mois</h2>
+                <div class="relative h-64 w-full">
+                    <canvas id="epargneChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau Récapitulatif -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden mb-8">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-slate-200"><i class="fa-solid fa-calendar-days mr-2 text-emerald-400"></i>Bilan Mensuel</h2>
+                <button onclick="viderDonnees()" class="text-xs text-rose-400 hover:text-rose-300 transition" title="Supprime le visuel, mais garde les données dans Google Sheet">Effacer l'affichage</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-950/50 text-slate-400 border-b border-slate-800">
+                            <th class="p-4 font-medium">Mois</th>
+                            <th class="p-4 font-medium text-right">Flux Variables Nets</th>
+                            <th class="p-4 font-medium text-right text-emerald-400">Épargne du Mois</th>
+                            <th class="p-4 font-medium text-center">Rapport</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bilanTableBody" class="divide-y divide-slate-800/50">
+                        <!-- Rempli par JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TEMPLATE PDF - Sorti de l'écran (left:-9999px) pour ne pas gêner, avec fond blanc forcé -->
+    <!-- ========================================================================= -->
+    <div id="pdf-wrapper" class="absolute -left-[9999px] top-0 w-[800px]" style="font-family: Arial, sans-serif;">
+        <div id="pdfTemplate" class="px-10 py-10 bg-white">
+            <!-- En-tête -->
+            <div class="flex justify-between items-center border-b-2 border-slate-800 pb-4 mb-6">
+                <div>
+                    <h1 class="text-3xl font-black text-slate-900 tracking-tight" style="color: #0f172a;">AHMED AMINE ANOUBL</h1>
+                    <p class="text-sm font-bold mt-1" style="color: #64748b;">BILAN FINANCIER MENSUEL</p>
+                </div>
+                <div class="text-right">
+                    <div class="font-bold text-lg px-4 py-2 rounded uppercase tracking-wider" style="background-color: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1;" id="pdfMoisBadge">MOIS</div>
+                </div>
+            </div>
+
+            <!-- Résumé Financier -->
+            <div class="rounded-lg p-5 mb-8" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
+                <h3 class="text-sm font-bold uppercase pb-2 mb-3" style="color: #1e293b; border-bottom: 1px solid #e2e8f0;">Synthèse Globale</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span style="color: #475569;">- Salaire de base :</span>
+                        <span class="font-bold" style="color: #0f172a;">11 400 DH</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span style="color: #475569;">- Charges Fixes :</span>
+                        <span class="font-bold" style="color: #e11d48;">2 350 DH</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span style="color: #475569;">- Total Flux Nets (Dépenses) :</span>
+                        <span class="font-bold" style="color: #d97706;" id="pdfFlux">0 DH</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span style="color: #475569;">- Épargne du mois :</span>
+                        <span class="font-bold" style="color: #059669;" id="pdfEpargne">0 DH</span>
+                    </div>
+                    <div class="flex justify-between pt-2 mt-2" style="border-top: 1px solid #e2e8f0;">
+                        <span class="font-bold uppercase" style="color: #1e293b;">Reste estimé :</span>
+                        <span class="font-black text-lg" style="color: #10b981;" id="pdfReste">0 DH</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table des opérations -->
+            <div class="mb-8">
+                <h3 class="text-sm font-bold uppercase pb-2 mb-4 tracking-wider" style="color: #1e293b; border-bottom: 2px solid #1e293b;">
+                    Détail des opérations
+                </h3>
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr style="background-color: #f1f5f9; color: #475569; border-bottom: 1px solid #e2e8f0;">
+                            <th class="py-2 px-3 font-bold uppercase text-[11px] w-8">N°</th>
+                            <th class="py-2 px-3 font-bold uppercase text-[11px]">Catégorie</th>
+                            <th class="py-2 px-3 font-bold uppercase text-[11px]">Détails / Notes</th>
+                            <th class="py-2 px-3 font-bold uppercase text-[11px] text-right">Montant</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pdfTableBody">
+                        <!-- Rempli par Javascript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer du document -->
+            <div class="mt-12 pt-4 text-center text-xs" style="border-top: 1px solid #cbd5e1; color: #64748b;">
+                ========================================<br>
+                Généré automatiquement par AHMED AMINE ANOUBL Dashboard<br>
+                <span id="pdfDateGen" class="italic text-[10px]"></span>
+            </div>
+        </div>
+    </div>
+    <!-- ========================================================================= -->
+
+    <!-- Script JavaScript -->
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbxeX8hWepWwa_WhZ3ORTgp_aNykIiy6aA_b00G3-v69CIRCIxoJF_uD1ETvwrEV5Hrh/exec";
+
+        let expenses = []; 
+        const SALAIRE = 11400;
+        const CHARGES_FIXES = 2350;
+        let myChart = null;
+        let dernierReliquat = 0;
+        let moisPrecedentDetecte = "";
+
+        const toggleLoading = (show) => {
+            document.getElementById('loadingIndicator').classList.toggle('hidden', !show);
+        };
+
+        function getMoisCourantStr() {
+            const dateActuelle = new Date();
+            const options = { month: 'long', year: 'numeric' };
+            let moisAnnee = dateActuelle.toLocaleDateString('fr-FR', options);
+            return moisAnnee.charAt(0).toUpperCase() + moisAnnee.slice(1);
+        }
+
+        function setMoisCourant() {
+            document.getElementById('moisInput').value = getMoisCourantStr();
+        }
+
+        function formaterMois(valeurMois) {
+            if (typeof valeurMois === 'string' && !valeurMois.includes('T')) return valeurMois;
+            const date = new Date(valeurMois);
+            const options = { month: 'long', year: 'numeric' };
+            let moisAnnee = date.toLocaleDateString('fr-FR', options);
+            return moisAnnee.charAt(0).toUpperCase() + moisAnnee.slice(1);
+        }
+
+        async function loadDataFromGoogleSheets() {
+            toggleLoading(true);
+            try {
+                const response = await fetch(API_URL + "?action=read");
+                const data = await response.json();
+                
+                if(data.records) {
+                    expenses = data.records.map(row => ({
+                        mois: formaterMois(row.Mois),
+                        categorie: row.Categorie,
+                        montant: parseFloat(row.Montant),
+                        description: row.Description
+                    })).filter(item => item.mois && !isNaN(item.montant));
+                }
+                updateDashboard();
+            } catch (error) {
+                console.error("Erreur API:", error);
+            }
+            toggleLoading(false);
+        }
+
+        document.getElementById('expenseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const mois = document.getElementById('moisInput').value.trim();
+            const categorie = document.getElementById('categorieInput').value;
+            const montant = parseFloat(document.getElementById('montantInput').value);
+            const description = document.getElementById('descInput').value.trim();
+
+            if (!mois || isNaN(montant)) return;
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Enregistrement...';
+            btn.disabled = true;
+
+            const queryParams = new URLSearchParams({
+                action: 'insert', mois, categorie, montant, description
+            });
+
+            try {
+                await fetch(`${API_URL}?${queryParams.toString()}`);
+                expenses.push({ mois, categorie, montant, description });
+                updateDashboard();
+                document.getElementById('montantInput').value = '';
+                document.getElementById('descInput').value = '';
+            } catch (error) {
+                alert("Erreur de connexion.");
+            }
+            btn.innerHTML = 'Enregistrer';
+            btn.disabled = false;
+        });
+
+        function calculerResteMois(moisNom, mapDonnees) {
+            let reste = SALAIRE - CHARGES_FIXES;
+            if (mapDonnees[moisNom]) {
+                reste -= mapDonnees[moisNom].epargne;
+                reste -= mapDonnees[moisNom].flux;
+            }
+            return reste;
+        }
+
+        function updateDashboard() {
+            let moisMap = {};
+            let totalFluxNet = 0;
+
+            expenses.forEach(item => {
+                if (!moisMap[item.mois]) moisMap[item.mois] = { flux: 0, epargne: 0 };
+                if (item.categorie === "Épargne / Investissement") {
+                    moisMap[item.mois].epargne += item.montant;
+                } else if (item.categorie === "Remboursement reçu") {
+                    moisMap[item.mois].flux -= item.montant;
+                    totalFluxNet -= item.montant;
+                } else {
+                    moisMap[item.mois].flux += item.montant;
+                    totalFluxNet += item.montant;
+                }
+            });
+
+            document.getElementById('cardTotalDepenses').innerText = totalFluxNet + " DH";
+            const moisActuel = getMoisCourantStr();
+            document.getElementById('cardResteSalaire').innerText = calculerResteMois(moisActuel, moisMap) + " DH";
+
+            verifierNotificationFinMois(moisMap);
+
+            const tbody = document.getElementById('bilanTableBody');
+            tbody.innerHTML = '';
+            
+            let sommeEpargne = 0, maxEpargne = -Infinity, moisRecord = "-", chartLabels = [], chartData = [];
+
+            for (let mois in moisMap) {
+                let d = moisMap[mois];
+                sommeEpargne += d.epargne;
+                chartLabels.push(mois);
+                chartData.push(d.epargne);
+                if (d.epargne > maxEpargne) { maxEpargne = d.epargne; moisRecord = mois; }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-4 text-slate-300 font-medium">${mois}</td>
+                    <td class="p-4 text-right text-amber-400">${d.flux} DH</td>
+                    <td class="p-4 text-right font-bold text-emerald-400">${d.epargne} DH</td>
+                    <td class="p-4 text-center">
+                        <button onclick="genererPDF('${mois}')" class="bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-slate-900 border border-emerald-500/50 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 mx-auto shadow-md">
+                            <i class="fa-solid fa-file-pdf"></i> Télécharger
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            let nbMois = Object.keys(moisMap).length;
+            document.getElementById('cardMoyenneEpargne').innerText = nbMois > 0 ? Math.round(sommeEpargne / nbMois) + " DH" : "0 DH";
+            document.getElementById('cardMoisRecord').innerText = nbMois > 0 ? moisRecord + ` (${maxEpargne} DH)` : "-";
+            updateChart(chartLabels, chartData);
+        }
+
+        // ==========================================
+        // GÉNÉRATION PDF AVEC FORÇAGE DES COULEURS
+        // ==========================================
+        function genererPDF(moisCible) {
+            const depensesMois = expenses.filter(item => item.mois === moisCible);
+            let fluxMois = 0; let epargneMois = 0;
+            
+            depensesMois.forEach(item => {
+                if (item.categorie === "Épargne / Investissement") epargneMois += item.montant;
+                else if (item.categorie === "Remboursement reçu") fluxMois -= item.montant;
+                else fluxMois += item.montant;
+            });
+
+            // Injection des totaux 
+            document.getElementById('pdfMoisBadge').innerText = moisCible;
+            document.getElementById('pdfDateGen').innerText = "Émis le : " + new Date().toLocaleDateString('fr-FR');
+            document.getElementById('pdfFlux').innerText = fluxMois + " DH";
+            document.getElementById('pdfEpargne').innerText = epargneMois + " DH";
+            document.getElementById('pdfReste').innerText = (SALAIRE - CHARGES_FIXES - epargneMois - fluxMois) + " DH";
+
+            const pdfTbody = document.getElementById('pdfTableBody');
+            pdfTbody.innerHTML = '';
+
+            if (depensesMois.length === 0) {
+                pdfTbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center italic" style="color: #94a3b8;">Aucune opération pour ce mois.</td></tr>`;
+            } else {
+                depensesMois.forEach((op, index) => {
+                    const tr = document.createElement('tr');
+                    tr.style.pageBreakInside = "avoid";
+                    tr.style.borderBottom = "1px solid #f1f5f9";
+                    
+                    let noteHtml = op.description ? `Note: ${op.description}` : `-`;
+
+                    // ON FORCE LES COULEURS EN CSS CLASSIQUE DANS LE JS
+                    tr.innerHTML = `
+                        <td class="py-3 px-3 font-bold" style="color: #64748b;">${index + 1}.</td>
+                        <td class="py-3 px-3 font-semibold" style="color: #1e293b;">[${op.categorie}]</td>
+                        <td class="py-3 px-3" style="color: #334155;">${noteHtml}</td>
+                        <td class="py-3 px-3 font-bold text-right" style="color: #0f172a;">${op.montant} DH</td>
+                    `;
+                    pdfTbody.appendChild(tr);
+                });
+            }
+
+            const element = document.getElementById('pdfTemplate');
+            const opt = {
+                margin:       [0.5, 0],
+                filename:     `AHMED AMINE ANOUBL_Bilan_${moisCible.replace(/\s+/g, '_')}.pdf`,
+                image:        { type: 'jpeg', quality: 1 },
+                pagebreak:    { mode: 'css', before: '#nextpage' },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    scrollY: 0 
+                },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function verifierNotificationFinMois(moisMap) {
+            const container = document.getElementById('notificationContainer');
+            const texte = document.getElementById('notificationText');
+            const tousLesMois = Object.keys(moisMap);
+            const moisActuel = getMoisCourantStr();
+            const moisPasse = tousLesMois.find(m => m !== moisActuel);
+
+            if (moisPasse) {
+                let reliquat = calculerResteMois(moisPasse, moisMap);
+                if (reliquat > 0) {
+                    dernierReliquat = reliquat;
+                    moisPrecedentDetecte = moisPasse;
+                    texte.innerHTML = `Il te restait <strong class="text-emerald-400">${reliquat} DH</strong> non dépensés pour le mois de <strong class="text-white">${moisPasse}</strong>. Veux-tu les basculer dans ton épargne ?`;
+                    container.classList.remove('hidden');
+                    return;
+                }
+            }
+            container.classList.add('hidden');
+        }
+
+        async function injecterReliquatEpargne() {
+            if (dernierReliquat > 0 && moisPrecedentDetecte) {
+                const queryParams = new URLSearchParams({
+                    action: 'insert', mois: moisPrecedentDetecte, categorie: "Épargne / Investissement",
+                    montant: dernierReliquat, description: "Reliquat converti en épargne"
+                });
+                try {
+                    toggleLoading(true);
+                    await fetch(`${API_URL}?${queryParams.toString()}`);
+                    expenses.push({ mois: moisPrecedentDetecte, categorie: "Épargne / Investissement", montant: dernierReliquat, description: "Reliquat converti en épargne" });
+                    document.getElementById('notificationContainer').classList.add('hidden');
+                    updateDashboard();
+                } catch(e) { alert("Erreur."); }
+                toggleLoading(false);
+            }
+        }
+
+        function updateChart(labels, data) {
+            const ctx = document.getElementById('epargneChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['Aucun mois'],
+                    datasets: [{ label: 'Épargne (DH)', data: data.length ? data : [0], backgroundColor: '#10b981', borderRadius: 8 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display: false }, ticks: { color: '#94a3b8' } }, y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } } }
+                }
+            });
+        }
+
+        function viderDonnees() {
+            alert("Les données restent dans ton Google Sheet.");
+            expenses = [];
+            updateDashboard();
+        }
+
+        setMoisCourant();
+        loadDataFromGoogleSheets(); 
+    </script>
+</body>
+</html>
