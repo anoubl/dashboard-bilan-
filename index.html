@@ -166,9 +166,7 @@
         </div>
     </div>
 
-    <!-- ========================================================================= -->
     <!-- TEMPLATE PDF -->
-    <!-- ========================================================================= -->
     <div id="pdf-wrapper" class="absolute -left-[9999px] top-0 w-[800px]" style="font-family: Arial, sans-serif;">
         <div id="pdfTemplate" class="px-10 py-10 bg-white">
             <div class="flex justify-between items-center border-b-2 border-slate-800 pb-4 mb-6">
@@ -232,7 +230,6 @@
             </div>
         </div>
     </div>
-    <!-- ========================================================================= -->
 
     <!-- Script JavaScript -->
     <script>
@@ -244,6 +241,19 @@
         let myChart = null;
         let dernierReliquat = 0;
         let moisPrecedentDetecte = "";
+
+        // Dictionnaire pour trier les mois chronologiquement
+        const moisOrdre = {
+            "Janvier": 1, "Février": 2, "Mars": 3, "Avril": 4, "Mai": 5, "Juin": 6,
+            "Juillet": 7, "Août": 8, "Septembre": 9, "Octobre": 10, "Novembre": 11, "Décembre": 12
+        };
+
+        // Convertit "Septembre 2026" en un nombre (202609) pour le tri
+        function moisValeur(moisStr) {
+            const parts = moisStr.split(' ');
+            if (parts.length !== 2) return 0;
+            return parseInt(parts[1]) * 100 + moisOrdre[parts[0]];
+        }
 
         const toggleLoading = (show) => {
             document.getElementById('loadingIndicator').classList.toggle('hidden', !show);
@@ -271,7 +281,8 @@
         async function loadDataFromGoogleSheets() {
             toggleLoading(true);
             try {
-                const response = await fetch(API_URL + "?action=read");
+                // Ajout de { redirect: "follow" } pour éviter les fausses erreurs 404
+                const response = await fetch(API_URL + "?action=read", { method: "GET", redirect: "follow" });
                 const data = await response.json();
                 
                 if(data.records) {
@@ -307,7 +318,7 @@
             });
 
             try {
-                await fetch(`${API_URL}?${queryParams.toString()}`);
+                await fetch(`${API_URL}?${queryParams.toString()}`, { method: "GET", redirect: "follow" });
                 expenses.push({ mois, categorie, montant, description });
                 updateDashboard();
                 document.getElementById('montantInput').value = '';
@@ -349,14 +360,18 @@
             const moisActuel = getMoisCourantStr();
             document.getElementById('cardResteSalaire').innerText = calculerResteMois(moisActuel, moisMap) + " DH";
 
-            verifierNotificationFinMois(moisMap);
+            // Tri chronologique des mois
+            const moisTries = Object.keys(moisMap).sort((a, b) => moisValeur(a) - moisValeur(b));
+
+            verifierNotificationFinMois(moisMap, moisTries);
 
             const tbody = document.getElementById('bilanTableBody');
             tbody.innerHTML = '';
             
             let sommeEpargne = 0, maxEpargne = -Infinity, moisRecord = "-", chartLabels = [], chartData = [];
 
-            for (let mois in moisMap) {
+            // On utilise la liste triée
+            moisTries.forEach(mois => {
                 let d = moisMap[mois];
                 sommeEpargne += d.epargne;
                 chartLabels.push(mois);
@@ -375,9 +390,9 @@
                     </td>
                 `;
                 tbody.appendChild(tr);
-            }
+            });
 
-            let nbMois = Object.keys(moisMap).length;
+            let nbMois = moisTries.length;
             document.getElementById('cardMoyenneEpargne').innerText = nbMois > 0 ? Math.round(sommeEpargne / nbMois) + " DH" : "0 DH";
             document.getElementById('cardMoisRecord').innerText = nbMois > 0 ? moisRecord + ` (${maxEpargne} DH)` : "-";
             updateChart(chartLabels, chartData);
@@ -435,12 +450,14 @@
             html2pdf().set(opt).from(element).save();
         }
 
-        function verifierNotificationFinMois(moisMap) {
+        function verifierNotificationFinMois(moisMap, moisTries) {
             const container = document.getElementById('notificationContainer');
             const texte = document.getElementById('notificationText');
-            const tousLesMois = Object.keys(moisMap);
             const moisActuel = getMoisCourantStr();
-            const moisPasse = tousLesMois.find(m => m !== moisActuel);
+
+            // Ne récupérer que les mois strictement antérieurs
+            const moisPasses = moisTries.filter(m => m !== moisActuel && moisValeur(m) < moisValeur(moisActuel));
+            const moisPasse = moisPasses[moisPasses.length - 1];
 
             if (moisPasse) {
                 let reliquat = calculerResteMois(moisPasse, moisMap);
@@ -463,7 +480,7 @@
                 });
                 try {
                     toggleLoading(true);
-                    await fetch(`${API_URL}?${queryParams.toString()}`);
+                    await fetch(`${API_URL}?${queryParams.toString()}`, { method: "GET", redirect: "follow" });
                     expenses.push({ mois: moisPrecedentDetecte, categorie: "Épargne / Investissement", montant: dernierReliquat, description: "Reliquat converti en épargne" });
                     document.getElementById('notificationContainer').classList.add('hidden');
                     updateDashboard();
@@ -495,26 +512,22 @@
             updateDashboard();
         }
 
-        // --- SYSTÈME DE SÉCURITÉ HACHÉ ---
-        // Ce texte crypté correspond au code "2026". Même si on lit le code, on ne sait pas ce que ça veut dire.
-        const HASH_SECRET = "131588f91c35bb629fd251452b62366d3c3a7acc4d167809682e434dc91ab9ac"; 
+        // --- NOUVEAU SYSTÈME DE SÉCURITÉ (Compatible Local et Hébergé) ---
+        // Le code PIN "2026" encodé en base64 pour éviter les erreurs de crypto.subtle en local
+        const HASH_SECRET = "MjAyNg=="; 
 
         if (sessionStorage.getItem('anovia_auth') === 'true') {
             document.getElementById('loginScreen').classList.add('hidden');
         }
 
-        // Fonction native pour crypter en SHA-256 sans charger de bibliothèque lourde
-        async function hashText(text) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(text);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        // Utilisation de btoa qui fonctionne à 100% même en local file:/// sans provoquer d'erreur critique
+        function hashText(text) {
+            return btoa(text);
         }
 
-        async function verifierCode() {
+        function verifierCode() {
             const input = document.getElementById('pinInput').value;
-            const hashedInput = await hashText(input); // On hache ce que l'utilisateur a tapé
+            const hashedInput = hashText(input);
 
             if (hashedInput === HASH_SECRET) {
                 document.getElementById('loginScreen').classList.add('hidden');
